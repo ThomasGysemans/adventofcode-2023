@@ -38,7 +38,7 @@ int get_calibration(const string& str) {
   // However if there is only one digit, then just select it.
   const regex reg("(?:^.*?(\\d).*(\\d).*$)|\\d");
   const auto iter = sregex_iterator(str.begin(), str.end(), reg);
-  smatch match = *iter;
+  const smatch match = *iter;
   if (match[2].str().empty()) { // meaning there was only one digit
     return stoi(string(2, match.str().at(0)));
   } else {
