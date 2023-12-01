@@ -4,9 +4,10 @@
 #include <fstream>
 using namespace std;
 
-static regex digit_regex("\\d{1}");
+static const regex digit_regex(R"(\d)");
 
-int get_calibration_value_from(string str) {
+// Firt solution
+int get_calibration_value_from(const string& str) {
   char first_digit = '0';
   char second_digit = '0';
   for (auto iter = str.begin(); iter != str.end(); ++iter) {
@@ -30,13 +31,28 @@ int get_calibration_value_from(string str) {
   return (first_digit - '0') * 10 + (second_digit - '0');
 }
 
+// Second solution
+int get_calibration(const string& str) {
+  // select as less characters as possible until the first digit,
+  // then select as many as possible until the next digit (so select the last one).
+  // However if there is only one digit, then just select it.
+  const regex reg("(?:^.*?(\\d).*(\\d).*$)|\\d");
+  const auto iter = sregex_iterator(str.begin(), str.end(), reg);
+  smatch match = *iter;
+  if (match[2].str().empty()) { // meaning there was only one digit
+    return stoi(string(2, match.str().at(0)));
+  } else {
+    return stoi(match[1].str()) * 10 + stoi(match[2].str());
+  }
+}
+
 int main() {
   int sum = 0;
 
   string line;
   ifstream file("./challenge-1/input.txt"); // the code will simply return 0 if there is no input file
   while (getline(file, line)) {
-    int i = get_calibration_value_from(line);
+    int i = get_calibration(line);
     sum += i;
   }
   file.close();
