@@ -42,4 +42,4 @@ challenge:
 
 # deletes the executable in `./build`
 clear: ${EXEC}
-	rm -fr ${EXEC}
+	@rm -fr ${EXEC}
