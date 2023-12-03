@@ -2,7 +2,28 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <array>
 using namespace std;
+
+/// @brief A position within the schematic.
+/// It is used to make sure we don't count several times the same number around one gear.
+/// Sometimes, there is twice the same number around the same gear, and so we need a way to tell the difference.
+class Pos {
+  public:
+    int x;
+    int y;
+
+    Pos(int x, int y): x(x), y(y) {}
+    Pos(): x(-1), y(-1) {}
+
+    static Pos defaultPos() {
+      return Pos(-1, -1);
+    }
+
+    bool equals(const Pos& p) {
+      return this->x == p.x && this->y == p.y;
+    }
+};
 
 /// @brief Reads the input file.
 /// @return The lines of the input file, in an array.
@@ -24,69 +45,83 @@ bool is_digit(const char& c) {
   return c >= '0' && c <= '9';
 }
 
-/// @brief Checks if the given character is a special symbol (so not a digit, and not a dot).
-/// @param c The character that might be a symbol.
-/// @return `true` if the given character is a symbol, `false` otherwise.
-bool is_symbol(const char& c) {
-  return c != '.' && !is_digit(c);
+/// @brief Checks if the given character is a gear ('*').
+/// @param c The character that might be a gear.
+/// @return `true` if the character is a gear ('*').
+bool is_gear(const char& c) {
+  return c == '*';
 }
 
-/// @brief Checks if a digit, at a given position, is near a symbol (it checks around it and diagonally).
+/// @brief Reads a number detected inside the schematic at a given position.
+/// We don't know the starting position of the number, but only the position of a digit in this number.
 /// @param schematic The schematic.
-/// @param dX The X coordinate of the digit.
-/// @param dY The Y coordinate of the digit.
-/// @return `true` if there is a symbol near this digit.
-bool near_symbol(const vector<string>& schematic, int dX, int dY) {
-  for (int y = dY - 1 < 0 ? 0 : dY - 1; y >= 0 && y <= dY + 1 && y < (int)schematic.size(); ++y) {
-    for (int x = dX - 1; x >= 0 && x <= dX + 1 && x < (int)schematic[y].size(); ++x) {
-      if (is_symbol(schematic[y][x])) {
-        return true;
+/// @param dX The X coordinate of the digit in contact with a valid gear.
+/// @param dY The Y coordinate of the digit in contact with a valid gear.
+/// @param uP The coordinates of the beginning of the number. "uP" stands for "unique position". The goal is to not count the same number twice.
+/// @return The full number deduced from the position of one of its digit.
+int read_number(const vector<string>& schematic, int dX, int dY, Pos* uP) {
+  string str = "";
+  str.reserve(3);
+  int x = dX;
+  // We go back horizontally until we find either the beginning of the line or something that's not a digit
+  while (x > 0 && is_digit(schematic[dY][x-1])) x--;
+  *uP = Pos(x, dY); // the number starts at (x; dY)
+  while (x < (int)schematic[dY].size() && is_digit(schematic[dY][x])) {
+    str += schematic[dY][x];
+    x++;
+  }
+  return stoi(str);
+}
+
+/// @brief Gets the two part numbers near a given valid gear.
+/// @param schematic The schematic.
+/// @param dX The X coordinate of the gear.
+/// @param dY The Y coordinate of the gear.
+/// @return The multiplication of the two part numbers that are adjacent to the given gear, or 0 if it's invalid.
+int get_gear_ratio(const vector<string>& schematic, int dX, int dY) {
+  int i = 0;
+  int full_number; // the full number being read
+  Pos uP; // the current unique X that's going to `read_number()`
+  array<Pos, 2> uniques{{Pos::defaultPos(), Pos::defaultPos()}}; // an array containing the starting positions of the numbers
+  array<int, 2> numbers{{0, 0}};
+
+  for (int y = dY - 1 < 0 ? 0 : dY - 1; y <= dY + 1 && y < (int)schematic.size(); ++y) {
+    for (int x = dX - 1 < 0 ? 0 : dX - 1; x <= dX + 1 && x < (int)schematic[y].size(); ++x) {
+      if (is_digit(schematic[y][x])) {
+        full_number = read_number(schematic, x, y, &uP);
+        if (uP.equals(uniques[0]) || uP.equals(uniques[1])) {
+          continue; // we re-detected a number that we already read.
+        } else {
+          if (i == 2) { // there is more than 2 numbers, so it's invalid.
+            return 0;
+          }
+          numbers[i] = full_number;
+          uniques[i] = uP;
+          i++;
+        }
       }
     }
   }
-  return false;
+  return numbers[0] * numbers[1]; // if there is no number, or just one, around the gear, then it'll return 0
 }
 
 int main() {
   const vector<string> schematic = get_schematic();
-  vector<int> integers;
-
-  // Since the numbers contained in the schematic will never exceed 3 characters in length,
-  // we can tell the string to already reserve the maximum amount of characters possible,
-  // in order to avoid automatic memory re-allocations after concatenations.
-  string str_int = "";
-  str_int.reserve(3);
-
-  bool near = false;
+  vector<int> ratios;
+  
   for (int y = 0; y < (int)schematic.size(); ++y) {
     for (int x = 0; x < (int)schematic[y].size(); ++x) {
-      if (is_digit(schematic[y][x])) {
-        str_int += schematic[y][x];
-        if (!near && near_symbol(schematic, x, y)) {
-          near = true;
-        }
-      } else {
-        if (!str_int.empty()) {
-          if (near) {
-            integers.push_back(stoi(str_int));
-            near = false;
-          }
-          str_int = "";
+      if (is_gear(schematic[y][x])) {
+        int ratio = get_gear_ratio(schematic, x, y);
+        if (ratio != 0) {
+          ratios.push_back(ratio);
         }
       }
     }
-    if (near && !str_int.empty()) { // just in case the number is at the very end of the line
-      integers.push_back(stoi(str_int));
-    }
-    // it's important to reset this data because the algorithm
-    // would concatenate a number at the end of a line 
-    // with the number starting the following line
-    str_int = "";
-    near = false;
   }
 
   int sum = 0;
-  for (int i : integers) {
+  for (int i : ratios) {
     sum += i;
   }
   cout << "sum = " << sum << endl;
