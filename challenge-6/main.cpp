@@ -5,64 +5,49 @@
 #include <vector>
 using namespace std;
 
-static const regex REGEX_NUMBER("(\\d+)");
+static const regex REGEX_LINE(".*: (.*)");
 
-struct race_t {
-  short time;
-  short distance;
-};
-
-vector<short> get_digits_from_line(const string& line) {
-  vector<short> numbers;
-  auto iter = sregex_iterator(line.begin(), line.end(), REGEX_NUMBER);
-  while (iter != sregex_iterator()) {
-    numbers.push_back((short)(stoi((*iter)[1].str())));
-    ++iter;
-  }
-  return numbers;
+long long get_digit_from_line(const string& line) {
+  const auto iter = sregex_iterator(line.begin(), line.end(), REGEX_LINE);
+  string str_number = (*iter)[1].str();
+  str_number.erase(remove_if(str_number.begin(), str_number.end(), ::isspace), str_number.end());
+  return stoll(str_number);
 }
 
-vector<race_t> read_input() {
+void read_input(long long* time, long long* distance) {
   ifstream file("./challenge-6/input.txt");
-  vector<race_t> races;
   string line = "";
-  getline(file, line);
-  vector<short> times = get_digits_from_line(line);
-  getline(file, line);
-  vector<short> distances = get_digits_from_line(line);
-
-  for (int i = 0; i < (int)times.size(); i++) {
-    race_t race;
-    race.time = times[i];
-    race.distance = distances[i];
-    races.push_back(race);
-  }
   
+  getline(file, line);
+  *time = get_digit_from_line(line);
+  getline(file, line);
+  *distance = get_digit_from_line(line);
+
   file.close();
-  races.shrink_to_fit();
-  return races;
 }
 
-short calculate_wins(race_t race) {
-  short wins = 0;
-  for (int i = 1; i < race.time; i++) {
-    int travel_distance = (race.time - i) * i;
-    if (travel_distance > race.distance) {
-      ++wins;
+int calculate_wins(const long long& time, const long long& distance) {
+  int not_wins = 0;
+  for (long long i = 0; i < time; i++) {
+    long long travel_distance = (time - i) * i;
+    if (travel_distance < distance) {
+      ++not_wins;
+    } else {
+      break;
     }
   }
-  return wins;
+  not_wins = not_wins * 2 - 1;
+  return time - not_wins;
 }
 
 int main() {
-  vector<race_t> races = read_input();
-  int total = 1;
+  long long time;
+  long long distance;
+  read_input(&time, &distance);
 
-  for (int i = 0; i < (int)races.size(); i++) {
-    total *= calculate_wins(races[i]);
-  }
+  int wins = calculate_wins(time, distance);
 
-  cout << "Total: " << total << endl;
+  cout << "Total: " << wins << endl;
 
   return 0;
 }
